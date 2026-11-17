@@ -87,3 +87,24 @@ function requireAuthenticatedUser(): array
         exit;
     }
 }
+
+function requireAllowedRoles(array $allowedRoles): array
+{
+    // First, confirm the user is logged in.
+    $user = requireAuthenticatedUser();
+
+    // Then, check whether their role is allowed.
+    if (!in_array($user['role'], $allowedRoles, true)) {
+        http_response_code(403);
+        header('Content-Type: application/json; charset=utf-8');
+
+        echo json_encode([
+            'success' => false,
+            'message' => 'Access denied.'
+        ]);
+
+        exit;
+    }
+
+    return $user;
+}
