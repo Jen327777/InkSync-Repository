@@ -58,11 +58,12 @@ try {
    
     $pdo = getDatabaseConnection();
 
-    $sql = "SELECT id, username, password_hash,
-                   role, is_active
-            FROM users
-            WHERE username = :username
-            LIMIT 1";
+  
+$sql = "SELECT id, username, full_name, password_hash,
+               role, is_active
+        FROM users
+        WHERE username = :username
+        LIMIT 1";
 
     $stmt = $pdo->prepare($sql);
 
@@ -124,11 +125,14 @@ try {
     echo json_encode([
         'success' => true,
         'message' => 'Login successful.',
-        'user' => [
-            'id' => (int) $user['id'],
-            'username' => $user['username'],
-            'role' => $user['role']
-        ],
+       
+'user' => [
+    'id' => (int) $user['id'],
+    'full_name' => $user['full_name'],
+    'username' => $user['username'],
+    'role' => $user['role']
+],
+
         'csrf_token' => $csrfToken
     ]);
 

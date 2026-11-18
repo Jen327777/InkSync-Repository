@@ -103,6 +103,47 @@ foreach ($requiredFields as $field => $maxLength) {
     $data[$field] = trim($data[$field]);
 }
 
+ // Validate printing service type.
+$allowedServices = [
+    'Tarpaulin',
+    'Acrylic Signages',
+    'Panaflex Signages',
+    'Wall Mural Sticker',
+    'Sticker Label',
+    'Standee',
+    'Sticker on Sintra',
+    'Board Up Tarpaulin',
+    'Lampost Banner',
+    'Railing Streamer',
+    'Luminous Signage',
+    'Magnetic Signages',
+    'Others'
+];
+
+if (!in_array($data['service_type'], $allowedServices, true)) {
+    orderError(422, 'Invalid printing service type.');
+}
+
+// For "Others", require the user to specify the service.
+if ($data['service_type'] === 'Others') {
+    $otherService = $data['other_service_type'] ?? null;
+
+    if (
+        !is_string($otherService) ||
+        trim($otherService) === '' ||
+        strlen(trim($otherService)) > 72
+    ) {
+        orderError(
+            422,
+            'Please specify the other printing service (maximum 72 bytes).'
+        );
+    }
+
+    // Store the description in the existing service_type column.
+    $data['service_type'] = 'Others: ' . trim($otherService);
+}
+
+
 // Validate optional text fields.
 $optionalFields = [
     'customer_email' => 150,
@@ -199,12 +240,7 @@ if (!in_array(
     orderError(422, 'Invalid fulfillment method.');
 }
 
-if (
-    $data['fulfillment_method'] === 'delivery' &&
-    $data['delivery_address'] === null
-) {
-    orderError(422, 'Delivery address is required.');
-}
+
 
 if ($data['fulfillment_method'] === 'pickup') {
     $data['delivery_address'] = null;

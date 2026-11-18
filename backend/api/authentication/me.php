@@ -30,15 +30,18 @@ try {
   
     http_response_code(200);
 
-    echo json_encode([
-        'success' => true,
-        'user' => [
-            'id' => $user['id'],
-            'username' => $user['username'],
-            'role' => $user['role']
-        ],
-        'csrf_token' => $csrfToken
-    ]);
+    
+echo json_encode([
+    'success' => true,
+    'user' => [
+        'id' => $user['id'],
+        'full_name' => $user['full_name'],
+        'username' => $user['username'],
+        'role' => $user['role']
+    ],
+    'csrf_token' => $csrfToken
+]);
+
 
 } catch (Throwable $error) {
     error_log($error->getMessage());
