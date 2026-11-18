@@ -66,6 +66,9 @@ CREATE TABLE IF NOT EXISTS orders (
         'completed'
     ) NOT NULL DEFAULT 'pending',
 
+completed_at DATETIME NULL DEFAULT NULL,
+
+
     created_by INT UNSIGNED NOT NULL,
 
     created_at TIMESTAMP

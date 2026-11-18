@@ -127,18 +127,34 @@ try {
 
     // Update only if the status has not changed
     // since we retrieved it.
-    $update = $pdo->prepare(
-        "UPDATE orders
-         SET status = :new_status
-         WHERE id = :id
-           AND status = :current_status"
-    );
+    
+$update = $pdo->prepare(
+    "UPDATE orders
+     SET status = :new_status,
+         completed_at = CASE
+             WHEN :mark_completed = 1
+                  AND completed_at IS NULL
+             THEN NOW()
+             ELSE completed_at
+         END
+     WHERE id = :id
+       AND status = :current_status"
+);
+
 
     $update->bindValue(
         ':new_status',
         $newStatus,
         PDO::PARAM_STR
     );
+
+
+$update->bindValue(
+    ':mark_completed',
+    $newStatus === 'completed' ? 1 : 0,
+    PDO::PARAM_INT
+);
+
 
     $update->bindValue(
         ':id',
