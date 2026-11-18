@@ -10,11 +10,12 @@ USE inksync_db;
 -- SPRINT 1: USER AUTHENTICATION
 -- ==========================================
 
+
 CREATE TABLE IF NOT EXISTS users (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
 
     username VARCHAR(50) NOT NULL UNIQUE,
-
+    full_name VARCHAR(120) NULL,
     password_hash VARCHAR(255) NOT NULL,
 
     role ENUM('admin', 'staff')
@@ -24,6 +25,7 @@ CREATE TABLE IF NOT EXISTS users (
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
 
 
 -- ==========================================

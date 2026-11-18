@@ -47,10 +47,12 @@ function requireAuthenticatedUser(): array
         $pdo = getDatabaseConnection();
 
         $stmt = $pdo->prepare(
-            "SELECT id, username, role
-             FROM users
-             WHERE id = :id AND is_active = 1
-             LIMIT 1"
+            
+                "SELECT id, username, full_name, role
+                FROM users
+                WHERE id = :id AND is_active = 1
+                LIMIT 1"
+
         );
 
         $stmt->execute(['id' => $userId]);
@@ -69,11 +71,14 @@ function requireAuthenticatedUser(): array
         }
 
         
-        return [
-            'id' => (int) $user['id'],
-            'username' => $user['username'],
-            'role' => $user['role']
-        ];
+        
+return [
+    'id' => (int) $user['id'],
+    'full_name' => $user['full_name'],
+    'username' => $user['username'],
+    'role' => $user['role']
+];
+
 
     } catch (Throwable $error) {
         error_log($error->getMessage());
