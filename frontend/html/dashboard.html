@@ -14,14 +14,15 @@
     <span id="pageTitle" class="ms-auto text-muted small">Order Tracking Board</span>
   </header>
 
-  <div class="container-fluid">
+  <div id="pageError" class="alert alert-danger d-none m-3" role="alert"></div>
+<div id="app" class="container-fluid invisible">
     <div class="row">
       <nav id="sidebar" class="offcanvas-md offcanvas-start col-md-3 col-lg-2 bg-dark text-white p-0" tabindex="-1" aria-label="Main navigation">
         <div class="offcanvas-header">
           <span class="fw-bold">InkSync</span>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" data-bs-target="#sidebar" aria-label="Close navigation"></button>
         </div>
-        <div class="offcanvas-body d-flex flex-column">
+        <div class="offcanvas-body d-flex flex-column px-3 pb-3">
           <ul class="nav flex-column w-100">
             <li class="nav-item"><a class="nav-link text-white active" href="#" data-section="dashboard">Dashboard</a></li>
             <li class="nav-item"><a class="nav-link text-white" href="#" data-section="orders">Order Logs</a></li>
@@ -75,6 +76,7 @@
  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="../js/config.js"></script>
 <script src="../js/api.js"></script>
+<script src="../js/auth.js"></script>
 <script src="../js/dashboard.js"></script>
 </body>
 </html>

@@ -1,1 +1,1 @@
-const API_BASE_URL = 'http://localhost/inksync-api';
+const API_BASE_URL = '../../backend/api';

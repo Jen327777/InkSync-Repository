@@ -1,4 +1,5 @@
 const API_TIMEOUT_MS = 10000;
+let csrfToken = null;
 
 class ApiError extends Error {
   constructor(message, status, data) {
@@ -9,14 +10,24 @@ class ApiError extends Error {
   }
 }
 
+function rememberCsrfToken(data) {
+  if (data && typeof data.csrf_token === 'string') {
+    csrfToken = data.csrf_token;
+  }
+}
+
 async function apiRequest(path, options = {}) {
   const { method = 'GET', body, headers = {}, onLoading } = options;
 
   const config = {
     method,
     headers: { Accept: 'application/json', ...headers },
-    credentials: 'include'
+    credentials: 'same-origin'
   };
+
+  if (method !== 'GET' && csrfToken) {
+    config.headers['X-CSRF-Token'] = csrfToken;
+  }
 
   if (body !== undefined) {
     config.headers['Content-Type'] = 'application/json';
@@ -32,6 +43,7 @@ async function apiRequest(path, options = {}) {
   }
 
   try {
+    
     const response = await fetch(API_BASE_URL + path, config);
     const text = await response.text();
 
@@ -49,6 +61,7 @@ async function apiRequest(path, options = {}) {
       throw new ApiError(message, response.status, data);
     }
 
+    rememberCsrfToken(data);
     return data;
   } catch (error) {
     if (error instanceof ApiError) {
