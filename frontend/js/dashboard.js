@@ -6,8 +6,6 @@ function setupNavigation(user) {
   const pageTitle = document.getElementById('pageTitle');
   const sidebar = document.getElementById('sidebar');
 
-  document.getElementById('userRole').textContent = user.role === 'admin' ? 'Admin' : 'Staff';
-
   if (user.role === 'admin') {
     document.querySelectorAll('.admin-only').forEach((item) => item.classList.remove('d-none'));
   }
@@ -19,6 +17,12 @@ function setupNavigation(user) {
     sections.forEach((section) => section.classList.toggle('d-none', section.id !== 'section-' + name));
     links.forEach((link) => link.classList.toggle('active', link.dataset.section === name));
     pageTitle.textContent = document.getElementById('section-' + name).dataset.title;
+    if (name === 'users') {
+      document.dispatchEvent(new CustomEvent('users:shown'));
+    }
+        if (name === 'revenue') {
+      document.dispatchEvent(new CustomEvent('revenue:shown'));
+    }
   }
 
   links.forEach((link) => {
@@ -32,7 +36,18 @@ function setupNavigation(user) {
     });
   });
 
-  document.getElementById('logoutBtn').addEventListener('click', logout);
+  const startSection = window.location.hash.slice(1);
+  if (startSection && document.getElementById('section-' + startSection)) {
+    showSection(startSection);
+  }
+}
+
+function showFlashMessage() {
+  const message = sessionStorage.getItem('inksyncFlash');
+  if (message) {
+    sessionStorage.removeItem('inksyncFlash');
+    showToast(message);
+  }
 }
 
 async function initDashboard() {
@@ -41,7 +56,10 @@ async function initDashboard() {
     return;
   }
   setupNavigation(user);
+  setupProfile(user);
   document.getElementById('app').classList.remove('invisible');
+  showFlashMessage();
+  loadOrders();
 }
 
 window.addEventListener('pageshow', (event) => {
