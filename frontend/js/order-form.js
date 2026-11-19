@@ -36,6 +36,7 @@ const BACKEND_FIELD_HINTS = [
   [/customer_email|customer email/, 'customer_email'],
   [/order_channel/, 'order_channel'],
   [/service_type/, 'service_type'],
+  [/printing service|other printing/i, 'service_type'],
   [/quantity/i, 'quantity'],
   [/unit price/i, 'unit_price'],
   [/discount/i, 'discount_amount'],
@@ -55,6 +56,8 @@ const serviceOtherBox = document.getElementById('serviceOtherBox');
 const addressBox = document.getElementById('addressBox');
 const discountBox = document.getElementById('discountBox');
 const totalPreview = document.getElementById('totalPreview');
+const orderDrawerTitle = document.getElementById('orderDrawerTitle');
+let editingOrderId = null;
 
 function renderOptions() {
   document.getElementById('channelOptions').innerHTML = ORDER_CHANNELS.map((name, index) => (
@@ -160,9 +163,9 @@ function validateOrder(values) {
   } else if (f.service_type.value === 'Others') {
     if (!values.service_type) {
       errors.service_other = 'Please specify the service.';
-    } else if (values.service_type.length > 80) {
-      errors.service_other = 'Keep it to 80 characters or fewer.';
-    }
+        } else if (values.service_type.length > 72) {
+      errors.service_other = 'Keep it to 72 characters or fewer.';
+  }
   }
 
   if (!/^\d+$/.test(values.quantity) || Number(values.quantity) < 1 || Number(values.quantity) > 100000) {
@@ -177,12 +180,8 @@ function validateOrder(values) {
     errors.due_date = 'Choose a due date.';
   }
 
-  if (values.fulfillment_method === 'delivery') {
-    if (!values.delivery_address) {
-      errors.delivery_address = 'Enter the delivery address.';
-    } else if (values.delivery_address.length > 2000) {
-      errors.delivery_address = 'The address is too long.';
-    }
+    if (values.fulfillment_method === 'delivery' && values.delivery_address.length > 2000) {
+    errors.delivery_address = 'The address is too long.';
   }
 
   if (f.apply_discount.checked) {
@@ -209,7 +208,7 @@ function buildPayload(values) {
     customer_phone: values.customer_phone,
     customer_email: values.customer_email,
     order_channel: values.order_channel,
-    service_type: values.service_type,
+    service_type: orderForm.elements.service_type.value === 'Others' ? 'Others: ' + values.service_type : values.service_type,
     description: values.description,
     quantity: Number(values.quantity),
     unit_price: values.unit_price,
@@ -243,6 +242,13 @@ function showBackendError(error) {
     return;
   }
 
+    if (error.status === 404 || error.status === 409) {
+    orderFormError.textContent = error.message;
+    orderFormError.classList.remove('d-none');
+    document.dispatchEvent(new CustomEvent('orders:changed'));
+    return;
+  }
+
   const hint = BACKEND_FIELD_HINTS.find(([pattern]) => pattern.test(error.message));
 
   if (hint) {
@@ -255,9 +261,60 @@ function showBackendError(error) {
   orderFormError.classList.remove('d-none');
 }
 
-function openOrderForm() {
+function prepareDrawer(title, saveLabel) {
   orderForm.reset();
   clearErrors();
+  orderDrawerTitle.textContent = title;
+  orderSaveBtn.textContent = saveLabel;
+}
+
+function openOrderForm() {
+  editingOrderId = null;
+  prepareDrawer('Log New Order', 'Save Order');
+  syncFormVisibility();
+  orderDrawer.show();
+}
+
+function fillOrderForm(order) {
+  const f = orderForm.elements;
+  const stored = order.service_type || '';
+
+  f.customer_name.value = order.customer_name || '';
+  f.customer_phone.value = order.customer_phone || '';
+  f.customer_email.value = order.customer_email || '';
+  f.order_channel.value = order.order_channel;
+
+  if (stored.startsWith('Others: ')) {
+    f.service_type.value = 'Others';
+    f.service_other.value = stored.slice(8);
+  } else if (SERVICE_TYPES.includes(stored)) {
+    f.service_type.value = stored;
+  } else {
+    f.service_type.value = 'Others';
+    f.service_other.value = stored.slice(0, 72);
+  }
+
+  f.quantity.value = String(order.quantity);
+  f.unit_price.value = String(order.unit_price);
+  f.due_date.value = order.due_date;
+  f.fulfillment_method.value = order.fulfillment_method;
+  f.delivery_address.value = order.delivery_address || '';
+  f.description.value = order.description || '';
+
+  const hasDiscount = Number(order.discount_amount) > 0;
+  f.apply_discount.checked = hasDiscount;
+  f.discount_amount.value = hasDiscount ? String(order.discount_amount) : '';
+}
+
+function openOrderEditor(id) {
+  const order = orders.find((item) => Number(item.id) === id);
+  if (!order || order.status === 'completed') {
+    return;
+  }
+
+  editingOrderId = id;
+  prepareDrawer('Edit Order ' + orderNumber(id), 'Save Changes');
+  fillOrderForm(order);
   syncFormVisibility();
   orderDrawer.show();
 }
@@ -291,9 +348,13 @@ orderForm.addEventListener('submit', async (event) => {
   setButtonLoading(orderSaveBtn, true, 'Saving...');
 
   try {
-    const data = await api.post('/orders/create.php', buildPayload(values));
+       const payload = buildPayload(values);
+    const isEdit = editingOrderId !== null;
+    const data = isEdit
+      ? await api.post('/orders/update.php', { id: editingOrderId, ...payload })
+      : await api.post('/orders/create.php', payload);
     orderDrawer.hide();
-    showToast('Order #ORD-' + data.order.id + ' saved. Total: ' + formatPeso(data.order.total_amount) + '.');
+    showToast(orderNumber(data.order.id) + (isEdit ? ' updated.' : ' saved.') + ' Total: ' + formatPeso(data.order.total_amount) + '.');
     document.dispatchEvent(new CustomEvent('orders:changed'));
   } catch (error) {
     showBackendError(error);

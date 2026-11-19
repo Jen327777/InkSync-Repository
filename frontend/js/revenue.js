@@ -164,10 +164,14 @@ function renderSources() {
     }).join('');
 }
 
+function completionTime(order) {
+  return String(order.completed_at || order.updated_at);
+}
+
 function renderLedger() {
   const completed = orders
     .filter((order) => order.status === 'completed')
-    .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+    .sort((a, b) => completionTime(b).localeCompare(completionTime(a)));
 
   if (completed.length === 0) {
     ledgerWrap.innerHTML = '<p class="text-center text-muted py-4 mb-0">No completed orders yet.</p>';
@@ -182,7 +186,7 @@ function renderLedger() {
         escapeHtml(order.customer_name) + '</button></td>' +
       '<td>' + escapeHtml(order.service_type) + '</td>' +
       '<td>' + escapeHtml(order.order_channel) + '</td>' +
-      '<td class="text-nowrap">' + escapeHtml(formatDate(order.updated_at)) + '</td>' +
+      '<td class="text-nowrap">' + escapeHtml(formatDate(completionTime(order))) + '</td>' +
       '<td class="text-end num text-nowrap">' + formatPeso(order.total_amount) + '</td>' +
       '</tr>';
   }).join('');

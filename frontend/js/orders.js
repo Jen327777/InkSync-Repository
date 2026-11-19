@@ -1,4 +1,5 @@
-const ORDER_LIST_LIMIT = 50;
+const ORDER_MAX_PAGES = 10;
+let ordersTruncated = false;
 
 let orders = [];
 
@@ -17,7 +18,9 @@ const orderListSummary = document.getElementById('orderListSummary');
 const orderPrevBtn = document.getElementById('orderPrevBtn');
 const orderNextBtn = document.getElementById('orderNextBtn');
 const orderPageLabel = document.getElementById('orderPageLabel');
+const orderDetailEditBtn = document.getElementById('orderDetailEditBtn');
 
+let detailOrderId = null;
 function showListMessage(html) {
   orderListMessage.innerHTML = html;
   orderListMessage.classList.remove('d-none');
@@ -91,9 +94,9 @@ function renderOrderList() {
   const filtered = orders.filter(matchesFilters);
 
   if (filtered.length === 0) {
-    const limited = orders.length >= ORDER_LIST_LIMIT
-      ? '<p class="small">Only the 50 most recent orders are searched.</p>'
-      : '';
+    const limited = ordersTruncated
+  ? '<p class="small">Only the most recent orders and all unfinished orders are searched.</p>'
+  : '';
     showListMessage(
       '<div class="text-center text-muted py-5">' +
       '<p class="fw-semibold mb-1">No orders match your search</p>' +
@@ -115,9 +118,41 @@ function renderOrderList() {
   orderPageLabel.textContent = 'Page ' + orderFilters.page + ' of ' + pageCount;
   orderPrevBtn.disabled = orderFilters.page <= 1;
   orderNextBtn.disabled = orderFilters.page >= pageCount;
-  orderListNote.classList.toggle('d-none', orders.length < ORDER_LIST_LIMIT);
+  orderListNote.classList.toggle('d-none', !ordersTruncated);
   showListTable();
 }
+
+
+async function fetchOrderPages(filter) {
+  const rows = [];
+  let offset = 0;
+
+  for (let page = 0; page < ORDER_MAX_PAGES; page++) {
+    const query = '?offset=' + offset + (filter ? '&status=' + filter : '');
+    const data = await api.get('/orders/list.php' + query);
+    rows.push(...data.orders);
+    if (!data.has_more) {
+      return { rows, complete: true };
+    }
+    offset = data.next_offset;
+  }
+
+  return { rows, complete: false };
+}
+
+async function fetchAllOrders() {
+  const [recent, unfinished] = await Promise.all([fetchOrderPages(''), fetchOrderPages('unfinished')]);
+  const byId = new Map();
+
+  [...recent.rows, ...unfinished.rows].forEach((order) => byId.set(Number(order.id), order));
+
+  const merged = [...byId.values()].sort((a, b) =>
+    String(b.created_at).localeCompare(String(a.created_at)) || Number(b.id) - Number(a.id)
+  );
+
+  return { orders: merged, truncated: !recent.complete };
+}
+
 
 async function loadOrders() {
   showListMessage(
@@ -127,8 +162,9 @@ async function loadOrders() {
   );
 
   try {
-    const data = await api.get('/orders/list.php');
-    orders = data.orders;
+    const result = await fetchAllOrders();
+orders = result.orders;
+ordersTruncated = result.truncated;
     renderOrderList();
     document.dispatchEvent(new CustomEvent('orders:loaded'));
   } catch (error) {
@@ -201,6 +237,9 @@ function openOrderDetail(id) {
       detailRow('Date logged', formatDate(order.created_at))
     ]);
 
+    detailOrderId = Number(order.id);
+orderDetailEditBtn.classList.toggle('d-none', order.status === 'completed');
+
   bootstrap.Modal.getOrCreateInstance(document.getElementById('orderDetailModal')).show();
 }
 
@@ -245,4 +284,20 @@ orderPrevBtn.addEventListener('click', () => {
 orderNextBtn.addEventListener('click', () => {
   orderFilters.page += 1;
   renderOrderList();
+});
+
+
+orderDetailEditBtn.addEventListener('click', () => {
+  const id = detailOrderId;
+  const modalEl = document.getElementById('orderDetailModal');
+
+  if (id === null) {
+    return;
+  }
+
+  modalEl.addEventListener('hidden.bs.modal', () => {
+    openOrderEditor(id);
+  }, { once: true });
+
+  bootstrap.Modal.getOrCreateInstance(modalEl).hide();
 });
