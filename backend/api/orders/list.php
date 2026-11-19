@@ -4,10 +4,10 @@ declare(strict_types=1);
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 
-// Only allow GET requests.
+// GET requests only.
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
-    http_response_code(405);
     header('Allow: GET');
+    http_response_code(405);
 
     echo json_encode([
         'success' => false,
@@ -17,17 +17,75 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     exit;
 }
 
-// Load authentication middleware.
 require_once __DIR__ . '/../../middleware/auth.php';
 
-// Only logged-in Admin and Staff can view orders.
+// Admin and Staff can view orders.
 requireAllowedRoles(['admin', 'staff']);
 
+// Optional order status filter.
+$status = $_GET['status'] ?? null;
+
+$allowedStatuses = [
+    'pending',
+    'approved',
+    'in_production',
+    'completed',
+    'unfinished'
+];
+
+if (
+    $status !== null &&
+    (
+        !is_string($status) ||
+        !in_array($status, $allowedStatuses, true)
+    )
+) {
+    http_response_code(422);
+
+    echo json_encode([
+        'success' => false,
+        'message' => 'Invalid order status filter.'
+    ]);
+
+    exit;
+}
+
+// Pagination: 50 orders per request.
+$rawOffset = $_GET['offset'] ?? '0';
+
+$offset = is_string($rawOffset)
+    ? filter_var(
+        $rawOffset,
+        FILTER_VALIDATE_INT,
+        ['options' => ['min_range' => 0]]
+    )
+    : false;
+
+if ($offset === false) {
+    http_response_code(422);
+
+    echo json_encode([
+        'success' => false,
+        'message' => 'Invalid offset.'
+    ]);
+
+    exit;
+}
+
+$pageSize = 50;
+
 try {
-    // Connect to the database.
     $pdo = getDatabaseConnection();
 
-    // Retrieve the 50 newest orders.
+    // Build the optional status condition safely.
+    $where = '';
+
+    if ($status === 'unfinished') {
+        $where = "WHERE o.status <> 'completed'";
+    } elseif ($status !== null) {
+        $where = "WHERE o.status = :status";
+    }
+
     $sql = "
         SELECT
             o.id,
@@ -45,6 +103,7 @@ try {
             o.fulfillment_method,
             o.delivery_address,
             o.status,
+            o.completed_at,
             o.created_by,
             u.username AS created_by_username,
             o.created_at,
@@ -52,22 +111,56 @@ try {
         FROM orders AS o
         INNER JOIN users AS u
             ON o.created_by = u.id
+        $where
         ORDER BY o.created_at DESC, o.id DESC
-        LIMIT 50
+        LIMIT :limit OFFSET :offset
     ";
 
     $stmt = $pdo->prepare($sql);
+
+    if ($status !== null && $status !== 'unfinished') {
+        $stmt->bindValue(
+            ':status',
+            $status,
+            PDO::PARAM_STR
+        );
+    }
+
+    // Retrieve one extra row to detect another page.
+    $stmt->bindValue(
+        ':limit',
+        $pageSize + 1,
+        PDO::PARAM_INT
+    );
+
+    $stmt->bindValue(
+        ':offset',
+        $offset,
+        PDO::PARAM_INT
+    );
+
     $stmt->execute();
 
     $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Return the orders as JSON.
+    $hasMore = count($orders) > $pageSize;
+
+    if ($hasMore) {
+        array_pop($orders);
+    }
+
     http_response_code(200);
 
     echo json_encode([
         'success' => true,
         'message' => 'Orders retrieved successfully.',
         'count' => count($orders),
+        'status_filter' => $status,
+        'offset' => $offset,
+        'has_more' => $hasMore,
+        'next_offset' => $hasMore
+            ? $offset + $pageSize
+            : null,
         'orders' => $orders
     ]);
 
