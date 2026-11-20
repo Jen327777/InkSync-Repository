@@ -128,43 +128,75 @@
     <button type="button" id="refreshRevenueBtn" class="btn btn-outline-secondary btn-sm">Refresh</button>
   </div>
 
-  <div id="revenueMessage"></div>
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="row g-3 align-items-end">
+        <div class="col-12 col-md-auto">
+          <div id="periodTypeLabel" class="form-label fw-semibold mb-1">Report type</div>
+          <div class="btn-group" role="group" aria-labelledby="periodTypeLabel">
+            <button type="button" class="btn btn-outline-primary active" data-period-type="daily" aria-pressed="true">Daily</button>
+            <button type="button" class="btn btn-outline-primary" data-period-type="monthly" aria-pressed="false">Monthly</button>
+          </div>
+        </div>
 
-  <div id="revenueContent" class="d-none">
-    <div id="revenueKpis" class="row g-3 mb-3"></div>
+        <div id="dateControl" class="col-12 col-sm-6 col-md-auto">
+          <label for="reportDate" class="form-label fw-semibold mb-1">Date</label>
+          <input type="date" id="reportDate" class="form-control">
+        </div>
 
-    <div class="row g-3 mb-3">
-      <div class="col-lg-7">
-        <div class="card h-100">
-          <div class="card-body">
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-1">
-              <h2 class="h6 mb-0">Revenue trend</h2>
-              <div class="btn-group btn-group-sm" role="group" aria-label="Chart period">
-                <button type="button" class="btn btn-outline-primary active" data-chart-mode="daily" aria-pressed="true">Daily</button>
-                <button type="button" class="btn btn-outline-primary" data-chart-mode="monthly" aria-pressed="false">Monthly</button>
-              </div>
+        <div id="monthControl" class="col-12 col-sm-6 col-md-auto d-none">
+          <label for="reportMonth" class="form-label fw-semibold mb-1">Month</label>
+          <input type="month" id="reportMonth" class="form-control" placeholder="YYYY-MM">
+        </div>
+
+        <div class="col-auto">
+          <div class="btn-group" role="group" aria-label="Move between periods">
+            <button type="button" id="periodPrevBtn" class="btn btn-outline-secondary">&lsaquo; Previous</button>
+            <button type="button" id="periodNextBtn" class="btn btn-outline-secondary">Next &rsaquo;</button>
+          </div>
+        </div>
+
+        <div class="col-auto">
+          <button type="button" id="periodResetBtn" class="btn btn-link">Today</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2 id="reportTitle" class="h5 mb-3"></h2>
+  <div id="reportPanel" class="mb-4"></div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-lg-7">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-1">
+            <h2 class="h6 mb-0">Revenue trend</h2>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Chart period">
+              <button type="button" class="btn btn-outline-primary active" data-chart-mode="daily" aria-pressed="true">Daily</button>
+              <button type="button" class="btn btn-outline-primary" data-chart-mode="monthly" aria-pressed="false">Monthly</button>
             </div>
-            <p id="chartCaption" class="small text-muted"></p>
-            <div id="revenueChart"></div>
           </div>
-        </div>
-      </div>
-
-      <div class="col-lg-5">
-        <div class="card h-100">
-          <div class="card-body">
-            <h2 class="h6 mb-1">Completed orders by source</h2>
-            <p class="small text-muted">Based on the orders loaded in the app.</p>
-            <div id="sourceBreakdown"></div>
-          </div>
+          <p id="chartCaption" class="small text-muted"></p>
+          <div id="revenueChart"></div>
         </div>
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-header bg-white fw-semibold">Recently completed orders</div>
-      <div id="ledgerWrap"></div>
+    <div class="col-lg-5">
+      <div class="card h-100">
+        <div class="card-body">
+          <h2 class="h6 mb-1">Completed orders by source</h2>
+          <p class="small text-muted">Based on the orders loaded in the app.</p>
+          <div id="sourceBreakdown"></div>
+        </div>
+      </div>
     </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header bg-white fw-semibold">Recently completed orders</div>
+    <div id="ledgerWrap"></div>
   </div>
 </section>
 

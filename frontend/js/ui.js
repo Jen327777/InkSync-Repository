@@ -44,3 +44,7 @@ function statusBadge(status) {
   return '<span class="badge rounded-pill status-badge status-' + escapeHtml(status) + '">' +
     escapeHtml(STATUS_LABELS[status] || status) + '</span>';
 }
+
+function formatCount(value) {
+  return Number(value).toLocaleString('en-PH');
+}

@@ -2,17 +2,40 @@ const REVENUE_DAYS = 7;
 const REVENUE_MONTHS = 6;
 const LEDGER_LIMIT = 10;
 
-let revenueData = null;
+const reportState = { type: 'daily' };
+let trendData = null;
 let chartMode = 'daily';
+let reportRequestId = 0;
+let trendRequestId = 0;
 
-const revenueMessage = document.getElementById('revenueMessage');
-const revenueContent = document.getElementById('revenueContent');
-const revenueKpis = document.getElementById('revenueKpis');
+const reportTitle = document.getElementById('reportTitle');
+const reportPanel = document.getElementById('reportPanel');
+const reportDateInput = document.getElementById('reportDate');
+const reportMonthInput = document.getElementById('reportMonth');
+const dateControl = document.getElementById('dateControl');
+const monthControl = document.getElementById('monthControl');
+const periodPrevBtn = document.getElementById('periodPrevBtn');
+const periodNextBtn = document.getElementById('periodNextBtn');
+const periodResetBtn = document.getElementById('periodResetBtn');
+const periodTypeButtons = document.querySelectorAll('[data-period-type]');
 const revenueChart = document.getElementById('revenueChart');
 const chartCaption = document.getElementById('chartCaption');
 const sourceBreakdown = document.getElementById('sourceBreakdown');
 const ledgerWrap = document.getElementById('ledgerWrap');
 const chartButtons = document.querySelectorAll('[data-chart-mode]');
+
+function loadingHtml(text) {
+  return '<div class="text-center text-muted py-5">' +
+    '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>' + text +
+    '</div>';
+}
+
+function errorHtml(message, action) {
+  return '<div class="alert alert-danger d-flex justify-content-between align-items-center mb-0" role="alert">' +
+    '<span>' + escapeHtml(message) + '</span>' +
+    '<button type="button" class="btn btn-sm btn-outline-danger" data-action="' + action + '">Try again</button>' +
+    '</div>';
+}
 
 function pad2(value) {
   return String(value).padStart(2, '0');
@@ -24,6 +47,24 @@ function dateKey(date) {
 
 function monthKey(date) {
   return date.getFullYear() + '-' + pad2(date.getMonth() + 1);
+}
+
+function parseDateKey(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) {
+    return null;
+  }
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return dateKey(date) === value ? date : null;
+}
+
+function parseMonthKey(value) {
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(value);
+  if (!match) {
+    return null;
+  }
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, 1);
+  return monthKey(date) === value ? date : null;
 }
 
 function buildPeriods() {
@@ -39,7 +80,7 @@ function buildPeriods() {
     months.push(new Date(now.getFullYear(), now.getMonth() - offset, 1));
   }
 
-  return { now, days, months };
+  return { days, months };
 }
 
 function compactPeso(value) {
@@ -52,13 +93,108 @@ function compactPeso(value) {
   return '₱' + Math.round(value);
 }
 
-function setRevenueMessage(html) {
-  revenueMessage.innerHTML = html;
-  revenueMessage.classList.remove('d-none');
-  revenueContent.classList.add('d-none');
+function completionTime(order) {
+  return String(order.completed_at || order.updated_at);
 }
 
-function kpiCard(title, value, note) {
+function periodLabel(type, date) {
+  const now = new Date();
+
+  if (type === 'daily') {
+    const text = date.toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    return dateKey(date) === dateKey(now) ? text + ' (today)' : text;
+  }
+
+  const text = date.toLocaleDateString('en-PH', { year: 'numeric', month: 'long' });
+  return monthKey(date) === monthKey(now) ? text + ' (this month)' : text;
+}
+
+function readSelectedPeriod() {
+  const now = new Date();
+
+  if (reportState.type === 'daily') {
+    const date = parseDateKey(reportDateInput.value);
+    if (!date) {
+      return { error: 'Choose a valid date.' };
+    }
+    if (dateKey(date) > dateKey(now)) {
+      return { error: 'The date cannot be in the future.' };
+    }
+    return { date };
+  }
+
+  const month = parseMonthKey(reportMonthInput.value);
+  if (!month) {
+    return { error: 'Choose a valid month (YYYY-MM).' };
+  }
+  if (monthKey(month) > monthKey(now)) {
+    return { error: 'The month cannot be in the future.' };
+  }
+  return { date: month };
+}
+
+function initReportInputs() {
+  const now = new Date();
+  reportDateInput.max = dateKey(now);
+  reportMonthInput.max = monthKey(now);
+  if (!reportDateInput.value) {
+    reportDateInput.value = dateKey(now);
+  }
+  if (!reportMonthInput.value) {
+    reportMonthInput.value = monthKey(now);
+  }
+}
+
+function updatePeriodControls() {
+  const daily = reportState.type === 'daily';
+  const selected = readSelectedPeriod();
+  const now = new Date();
+
+  periodTypeButtons.forEach((button) => {
+    const active = button.dataset.periodType === reportState.type;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', active);
+  });
+
+  dateControl.classList.toggle('d-none', !daily);
+  monthControl.classList.toggle('d-none', daily);
+  periodResetBtn.textContent = daily ? 'Today' : 'This month';
+  periodPrevBtn.disabled = Boolean(selected.error);
+
+  if (selected.error) {
+    periodNextBtn.disabled = true;
+  } else {
+    periodNextBtn.disabled = daily
+      ? dateKey(selected.date) >= dateKey(now)
+      : monthKey(selected.date) >= monthKey(now);
+  }
+}
+
+function stepPeriod(direction) {
+  const selected = readSelectedPeriod();
+  if (selected.error) {
+    return;
+  }
+
+  const base = selected.date;
+
+  if (reportState.type === 'daily') {
+    reportDateInput.value = dateKey(new Date(base.getFullYear(), base.getMonth(), base.getDate() + direction));
+  } else {
+    reportMonthInput.value = monthKey(new Date(base.getFullYear(), base.getMonth() + direction, 1));
+  }
+
+  loadReport();
+}
+
+function resetPeriod() {
+  const now = new Date();
+  reportDateInput.value = dateKey(now);
+  reportMonthInput.value = monthKey(now);
+  loadReport();
+}
+
+function reportCard(title, value, note) {
   return '<div class="col-12 col-sm-6 col-xl-3"><div class="card h-100"><div class="card-body">' +
     '<div class="small text-muted">' + title + '</div>' +
     '<div class="h3 fw-bold mb-1 num">' + value + '</div>' +
@@ -66,27 +202,91 @@ function kpiCard(title, value, note) {
     '</div></div></div>';
 }
 
-function renderKpis() {
-  const { daily, monthly, volume } = revenueData;
-  const today = daily[daily.length - 1];
-  const yesterday = daily[daily.length - 2];
-  const month = monthly[monthly.length - 1];
-  const lastMonth = monthly[monthly.length - 2];
+function renderReport(revenueReport, volumeReport) {
+  const revenue = Number(revenueReport.total_revenue);
+  const completed = Number(revenueReport.completed_orders);
+  const received = Number(volumeReport.total_orders);
+  const average = completed > 0 ? formatPeso(revenue / completed) : '—';
 
-  revenueKpis.innerHTML =
-    kpiCard("Today's revenue", formatPeso(today.revenue), 'Yesterday: ' + formatPeso(yesterday.revenue)) +
-    kpiCard('Monthly revenue', formatPeso(month.revenue), 'Last month: ' + formatPeso(lastMonth.revenue)) +
-    kpiCard('Completed today', today.orders, 'This month: ' + month.orders) +
-    kpiCard(
-      'Orders received this month',
-      volume.total_orders,
-      volume.pending + ' pending · ' + volume.approved + ' approved · ' +
-        volume.in_production + ' in production · ' + volume.completed + ' completed'
-    );
+  const breakdown = [
+    formatCount(volumeReport.pending) + ' pending',
+    formatCount(volumeReport.approved) + ' approved',
+    formatCount(volumeReport.in_production) + ' in production',
+    formatCount(volumeReport.completed) + ' completed'
+  ].join(' · ');
+
+  let notice = '';
+  if (completed === 0 && received === 0) {
+    notice = 'No orders were logged or completed in this period.';
+  } else if (completed === 0) {
+    notice = 'No orders were completed in this period. Revenue only counts completed orders.';
+  }
+
+  reportPanel.innerHTML =
+    '<div class="row g-3">' +
+    reportCard('Revenue total', formatPeso(revenue), 'From completed orders') +
+    reportCard('Completed orders', formatCount(completed), 'Finished in this period') +
+    reportCard('Orders received', formatCount(received), 'Logged in this period: ' + breakdown) +
+    reportCard('Average per completed order', average, 'Revenue ÷ completed orders') +
+    '</div>' +
+    (notice ? '<div class="alert alert-info mt-3 mb-0" role="status">' + notice + '</div>' : '');
+}
+
+function describeReportError(error) {
+  if (error.status === 403) {
+    return 'Only admins can view revenue reports.';
+  }
+  return error.message;
+}
+
+async function loadReport() {
+  updatePeriodControls();
+
+  const selected = readSelectedPeriod();
+  const daily = reportState.type === 'daily';
+
+  if (selected.error) {
+    reportTitle.textContent = '';
+    reportPanel.innerHTML = '<div class="alert alert-warning mb-0" role="alert">' + selected.error + '</div>';
+    return;
+  }
+
+  const requestId = ++reportRequestId;
+  const key = daily ? dateKey(selected.date) : monthKey(selected.date);
+  const query = daily ? '?date=' + key : '?month=' + key;
+
+  reportTitle.textContent = (daily ? 'Daily report: ' : 'Monthly report: ') + periodLabel(reportState.type, selected.date);
+  reportPanel.innerHTML = loadingHtml('Loading report...');
+
+  try {
+    const [revenue, volume] = await Promise.all([
+      api.get((daily ? '/dashboard/daily-revenue.php' : '/dashboard/monthly-revenue.php') + query),
+      api.get('/dashboard/order-volume.php' + query)
+    ]);
+
+    if (requestId !== reportRequestId) {
+      return;
+    }
+
+    renderReport(revenue.report, volume.report);
+  } catch (error) {
+    if (requestId !== reportRequestId) {
+      return;
+    }
+    if (error.status === 401) {
+      window.location.replace('login.html');
+      return;
+    }
+    reportPanel.innerHTML = errorHtml(describeReportError(error), 'retry-report');
+  }
 }
 
 function renderChart() {
-  const items = revenueData[chartMode];
+  if (!trendData) {
+    return;
+  }
+
+  const items = trendData[chartMode];
 
   chartCaption.textContent = chartMode === 'daily'
     ? 'Revenue from orders completed in the last 7 days.'
@@ -127,7 +327,7 @@ function renderChart() {
         compactPeso(item.revenue) + '</text>'
       : '';
 
-    return '<g><title>' + escapeHtml(item.label) + ': ' + formatPeso(item.revenue) + ' (' + item.orders + ' orders)</title>' +
+    return '<g><title>' + escapeHtml(item.label) + ': ' + formatPeso(item.revenue) + ' (' + formatCount(item.orders) + ' orders)</title>' +
       '<rect x="' + x + '" y="' + y + '" width="' + barWidth + '" height="' + barHeight + '" rx="4" fill="' + fill + '"/>' +
       valueLabel +
       '<text x="' + center + '" y="' + (height - 12) + '" text-anchor="middle" font-size="11" fill="#64748b">' +
@@ -136,6 +336,49 @@ function renderChart() {
 
   revenueChart.innerHTML = '<svg viewBox="0 0 ' + width + ' ' + height + '" class="w-100" role="img" ' +
     'aria-label="Bar chart of revenue by ' + (chartMode === 'daily' ? 'day' : 'month') + '">' + grid + bars + '</svg>';
+}
+
+async function loadTrends() {
+  const requestId = ++trendRequestId;
+  const { days, months } = buildPeriods();
+
+  revenueChart.innerHTML = loadingHtml('Loading chart...');
+
+  try {
+    const [dailyReports, monthlyReports] = await Promise.all([
+      Promise.all(days.map((day) => api.get('/dashboard/daily-revenue.php?date=' + dateKey(day)))),
+      Promise.all(months.map((month) => api.get('/dashboard/monthly-revenue.php?month=' + monthKey(month))))
+    ]);
+
+    if (requestId !== trendRequestId) {
+      return;
+    }
+
+    trendData = {
+      daily: dailyReports.map((result, index) => ({
+        label: index === days.length - 1 ? 'Today' : days[index].toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }),
+        revenue: Number(result.report.total_revenue),
+        orders: result.report.completed_orders
+      })),
+      monthly: monthlyReports.map((result, index) => ({
+        label: index === months.length - 1 ? 'This month' : months[index].toLocaleDateString('en-PH', { month: 'short' }),
+        revenue: Number(result.report.total_revenue),
+        orders: result.report.completed_orders
+      }))
+    };
+
+    renderChart();
+  } catch (error) {
+    if (requestId !== trendRequestId) {
+      return;
+    }
+    if (error.status === 401) {
+      window.location.replace('login.html');
+      return;
+    }
+    trendData = null;
+    revenueChart.innerHTML = errorHtml(describeReportError(error), 'retry-trends');
+  }
 }
 
 function renderSources() {
@@ -157,15 +400,11 @@ function renderSources() {
       const percent = Math.round(count / completed.length * 100);
       return '<div class="mb-3">' +
         '<div class="d-flex justify-content-between small"><span>' + escapeHtml(channel) + '</span>' +
-        '<span class="num">' + count + ' (' + percent + '%)</span></div>' +
+        '<span class="num">' + formatCount(count) + ' (' + percent + '%)</span></div>' +
         '<div class="progress" style="height: 8px" role="progressbar" aria-label="' + escapeHtml(channel) + '" ' +
         'aria-valuenow="' + percent + '" aria-valuemin="0" aria-valuemax="100">' +
         '<div class="progress-bar" style="width: ' + percent + '%"></div></div></div>';
     }).join('');
-}
-
-function completionTime(order) {
-  return String(order.completed_at || order.updated_at);
 }
 
 function renderLedger() {
@@ -192,7 +431,7 @@ function renderLedger() {
   }).join('');
 
   const note = completed.length > LEDGER_LIMIT
-    ? '<div class="card-footer small text-muted bg-white">Showing ' + LEDGER_LIMIT + ' of ' + completed.length + ' completed orders.</div>'
+    ? '<div class="card-footer small text-muted bg-white">Showing ' + LEDGER_LIMIT + ' of ' + formatCount(completed.length) + ' completed orders.</div>'
     : '';
 
   ledgerWrap.innerHTML =
@@ -202,78 +441,48 @@ function renderLedger() {
     '<tbody>' + rows + '</tbody></table></div>' + note;
 }
 
-function updateChartButtons() {
-  chartButtons.forEach((button) => {
-    const active = button.dataset.chartMode === chartMode;
-    button.classList.toggle('active', active);
-    button.setAttribute('aria-pressed', active);
+function refreshRevenue() {
+  initReportInputs();
+  loadReport();
+  loadTrends();
+  renderSources();
+  renderLedger();
+}
+
+periodTypeButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    reportState.type = button.dataset.periodType;
+    loadReport();
   });
-}
+});
 
-async function loadRevenue() {
-  setRevenueMessage(
-    '<div class="text-center text-muted py-5">' +
-    '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Loading reports...' +
-    '</div>'
-  );
-
-  const { now, days, months } = buildPeriods();
-
-  try {
-    const [dailyReports, monthlyReports, volumeReport] = await Promise.all([
-      Promise.all(days.map((day) => api.get('/dashboard/daily-revenue.php?date=' + dateKey(day)))),
-      Promise.all(months.map((month) => api.get('/dashboard/monthly-revenue.php?month=' + monthKey(month)))),
-      api.get('/dashboard/order-volume.php?month=' + monthKey(now))
-    ]);
-
-    revenueData = {
-      daily: dailyReports.map((result, index) => ({
-        label: index === days.length - 1 ? 'Today' : days[index].toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }),
-        revenue: Number(result.report.total_revenue),
-        orders: result.report.completed_orders
-      })),
-      monthly: monthlyReports.map((result, index) => ({
-        label: index === months.length - 1 ? 'This month' : months[index].toLocaleDateString('en-PH', { month: 'short' }),
-        revenue: Number(result.report.total_revenue),
-        orders: result.report.completed_orders
-      })),
-      volume: volumeReport.report
-    };
-
-    revenueMessage.classList.add('d-none');
-    revenueContent.classList.remove('d-none');
-    renderKpis();
-    renderChart();
-    renderSources();
-    renderLedger();
-  } catch (error) {
-    if (error.status === 401) {
-      window.location.replace('login.html');
-      return;
-    }
-    revenueData = null;
-    setRevenueMessage(
-      '<div class="alert alert-danger d-flex justify-content-between align-items-center" role="alert">' +
-      '<span>' + escapeHtml(error.message) + '</span>' +
-      '<button type="button" class="btn btn-sm btn-outline-danger" data-action="retry-revenue">Try again</button>' +
-      '</div>'
-    );
-  }
-}
+reportDateInput.addEventListener('change', loadReport);
+reportMonthInput.addEventListener('change', loadReport);
+periodPrevBtn.addEventListener('click', () => stepPeriod(-1));
+periodNextBtn.addEventListener('click', () => stepPeriod(1));
+periodResetBtn.addEventListener('click', resetPeriod);
 
 chartButtons.forEach((button) => {
   button.addEventListener('click', () => {
     chartMode = button.dataset.chartMode;
-    updateChartButtons();
-    if (revenueData) {
-      renderChart();
-    }
+    chartButtons.forEach((other) => {
+      const active = other.dataset.chartMode === chartMode;
+      other.classList.toggle('active', active);
+      other.setAttribute('aria-pressed', active);
+    });
+    renderChart();
   });
 });
 
-revenueMessage.addEventListener('click', (event) => {
-  if (event.target.closest('[data-action="retry-revenue"]')) {
-    loadRevenue();
+reportPanel.addEventListener('click', (event) => {
+  if (event.target.closest('[data-action="retry-report"]')) {
+    loadReport();
+  }
+});
+
+revenueChart.addEventListener('click', (event) => {
+  if (event.target.closest('[data-action="retry-trends"]')) {
+    loadTrends();
   }
 });
 
@@ -285,11 +494,12 @@ ledgerWrap.addEventListener('click', (event) => {
 });
 
 document.addEventListener('orders:loaded', () => {
-  if (revenueData) {
-    renderSources();
-    renderLedger();
-  }
+  renderSources();
+  renderLedger();
 });
 
-document.addEventListener('revenue:shown', loadRevenue);
-document.getElementById('refreshRevenueBtn').addEventListener('click', loadRevenue);
+document.addEventListener('revenue:shown', refreshRevenue);
+document.getElementById('refreshRevenueBtn').addEventListener('click', refreshRevenue);
+
+initReportInputs();
+updatePeriodControls();
