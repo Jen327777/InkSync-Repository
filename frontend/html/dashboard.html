@@ -8,11 +8,14 @@
   <link href="../css/style.css" rel="stylesheet">
 </head>
 <body>
+
+ <a class="visually-hidden-focusable position-absolute top-0 start-0 z-3 bg-white p-2" href="#mainContent">Skip to main content</a>
+
   <header class="navbar bg-white border-bottom sticky-top px-3">
     <button class="btn d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebar" aria-controls="sidebar" aria-label="Open navigation">&#9776;</button>
     <a class="navbar-brand fw-bold text-primary" href="#">InkSync</a>
-    <span id="pageTitle" class="ms-auto text-muted small">Order Tracking Board</span>
-    <button type="button" id="newOrderBtn" class="btn btn-primary btn-sm ms-3">+ Log New Order</button>
+    <span id="pageTitle" class="ms-auto text-muted small d-none d-sm-inline">Order Tracking Board</span>
+    <button type="button" id="newOrderBtn" class="btn btn-primary btn-sm ms-auto ms-sm-3">+ Log New Order</button>
   </header>
 
   <div id="pageError" class="alert alert-danger d-none m-3" role="alert"></div>
@@ -42,7 +45,7 @@
         </div>
       </nav>
 
-      <main class="col-md-9 col-lg-10 p-4">
+      <main id="mainContent" tabindex="-1" class="col-md-9 col-lg-10 p-4">
         <div class="d-flex flex-wrap justify-content-end align-items-center gap-3 mb-3 small text-muted">
   <span id="refreshWarning" class="text-danger d-none" role="status">Could not refresh. Retrying...</span>
   <span id="lastUpdated"></span>

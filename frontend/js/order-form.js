@@ -160,13 +160,8 @@ function validateOrder(values) {
 
   if (!f.service_type.value) {
     errors.service_type = 'Choose a printing service.';
-  } else if (f.service_type.value === 'Others') {
-    if (!values.service_type) {
-      errors.service_other = 'Please specify the service.';
-        } else if (values.service_type.length > 72) {
+  } else if (new TextEncoder().encode(values.service_type).length > 72) {
       errors.service_other = 'Keep it to 72 characters or fewer.';
-  }
-  }
 
   if (!/^\d+$/.test(values.quantity) || Number(values.quantity) < 1 || Number(values.quantity) > 100000) {
     errors.quantity = 'Enter a whole number from 1 to 100,000.';
@@ -203,12 +198,14 @@ function validateOrder(values) {
 }
 
 function buildPayload(values) {
-  return {
+  const isOther = orderForm.elements.service_type.value === 'Others';
+
+  const payload = {
     customer_name: values.customer_name,
     customer_phone: values.customer_phone,
     customer_email: values.customer_email,
     order_channel: values.order_channel,
-    service_type: orderForm.elements.service_type.value === 'Others' ? 'Others: ' + values.service_type : values.service_type,
+    service_type: isOther ? 'Others' : values.service_type,
     description: values.description,
     quantity: Number(values.quantity),
     unit_price: values.unit_price,
@@ -217,6 +214,12 @@ function buildPayload(values) {
     fulfillment_method: values.fulfillment_method,
     delivery_address: values.fulfillment_method === 'delivery' ? values.delivery_address : ''
   };
+
+  if (isOther) {
+    payload.other_service_type = values.service_type;
+  }
+
+  return payload;
 }
 
 function updateTotalPreview() {
@@ -371,3 +374,4 @@ document.getElementById('newOrderBtn').addEventListener('click', openOrderForm);
 
 renderOptions();
 syncFormVisibility();
+}

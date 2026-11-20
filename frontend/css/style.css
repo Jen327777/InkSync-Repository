@@ -161,3 +161,11 @@
 .staff-page {
   max-width: 520px;
 }
+
+.board-col .text-muted {
+  color: #495057 !important;
+}
+
+#mainContent:focus {
+  outline: none;
+}

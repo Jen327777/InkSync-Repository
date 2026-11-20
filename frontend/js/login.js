@@ -90,3 +90,12 @@ fetchCurrentUser()
     }
   })
   .catch(() => {});
+
+const loginNotice = document.getElementById('loginNotice');
+const pendingNotice = sessionStorage.getItem('inksyncLoginNotice');
+
+if (pendingNotice) {
+  sessionStorage.removeItem('inksyncLoginNotice');
+  loginNotice.textContent = pendingNotice;
+  loginNotice.classList.remove('d-none');
+}

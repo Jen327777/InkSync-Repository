@@ -56,7 +56,10 @@ async function apiRequest(path, options = {}) {
       }
     }
 
-    if (!response.ok) {
+      if (!response.ok) {
+      if (response.status === 401 && !path.startsWith('/authentication/')) {
+        sessionStorage.setItem('inksyncLoginNotice', 'Your session has ended. Please log in again.');
+      }
       const message = (data && data.message) || 'Request failed (' + response.status + ').';
       throw new ApiError(message, response.status, data);
     }
