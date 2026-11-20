@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>InkSync</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="../css/style.css" rel="stylesheet">
+</head>
+<body>
+
+ <a class="visually-hidden-focusable position-absolute top-0 start-0 z-3 bg-white p-2" href="#mainContent">Skip to main content</a>
+
+  <header class="navbar bg-white border-bottom sticky-top px-3">
+    <button class="btn d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebar" aria-controls="sidebar" aria-label="Open navigation">&#9776;</button>
+    <a class="navbar-brand fw-bold text-primary" href="#">InkSync</a>
+    <span id="pageTitle" class="ms-auto text-muted small d-none d-sm-inline">Order Tracking Board</span>
+    <button type="button" id="newOrderBtn" class="btn btn-primary btn-sm ms-auto ms-sm-3">+ Log New Order</button>
+  </header>
+
+  <div id="pageError" class="alert alert-danger d-none m-3" role="alert"></div>
+<div id="app" class="container-fluid invisible">
+    <div class="row">
+      <nav id="sidebar" class="offcanvas-md offcanvas-start col-md-3 col-lg-2 bg-dark text-white p-0" tabindex="-1" aria-label="Main navigation">
+        <div class="offcanvas-header">
+          <span class="fw-bold">InkSync</span>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" data-bs-target="#sidebar" aria-label="Close navigation"></button>
+        </div>
+        <div class="offcanvas-body d-flex flex-column px-3 pb-3">
+          <ul class="nav flex-column w-100">
+            <li class="nav-item"><a class="nav-link text-white active" href="#" data-section="dashboard">Dashboard</a></li>
+            <li class="nav-item"><a class="nav-link text-white" href="#" data-section="orders">Order Logs</a></li>
+            <li class="nav-item admin-only d-none"><a class="nav-link text-white" href="#" data-section="revenue">Revenue &amp; Reports</a></li>
+            <li class="nav-item admin-only d-none"><a class="nav-link text-white" href="#" data-section="users">User Management</a></li>
+          </ul>
+          <div class="mt-auto pt-3 border-top border-secondary w-100">
+  <button type="button" id="profileOpenBtn" class="btn profile-btn w-100 d-flex align-items-center gap-2 text-start" aria-haspopup="dialog">
+    <span id="profileAvatar" class="profile-avatar" aria-hidden="true"></span>
+    <span class="flex-grow-1 text-truncate">
+      <span id="profileName" class="d-block fw-semibold text-truncate"></span>
+      <span id="profileRoleBadge" class="badge bg-primary"></span>
+    </span>
+  </button>
+</div>
+        </div>
+      </nav>
+
+      <main id="mainContent" tabindex="-1" class="col-md-9 col-lg-10 p-4">
+        <div class="d-flex flex-wrap justify-content-end align-items-center gap-3 mb-3 small text-muted">
+  <span id="refreshWarning" class="text-danger d-none" role="status">Could not refresh. Retrying...</span>
+  <span id="lastUpdated"></span>
+  <div class="form-check form-switch mb-0">
+    <input class="form-check-input" type="checkbox" role="switch" id="autoRefreshToggle" checked>
+    <label class="form-check-label" for="autoRefreshToggle">Auto-refresh (every 10 seconds)</label>
+  </div>
+</div>
+        <section id="section-dashboard" data-title="Order Tracking Board">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h4 mb-0">Order Tracking Board</h1>
+    <button type="button" id="refreshBoardBtn" class="btn btn-outline-secondary btn-sm">Refresh</button>
+  </div>
+
+  <div id="boardColumns">
+    <div class="text-center text-muted py-5">
+      <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Loading board...
+    </div>
+  </div>
+</section>
+
+        <section id="section-orders" class="d-none" data-title="Order Logs">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h4 mb-0">Order Logs</h1>
+    <button type="button" id="refreshOrdersBtn" class="btn btn-outline-secondary btn-sm">Refresh</button>
+  </div>
+
+  <div id="orderToolbar" class="row g-2 mb-3 d-none">
+    <div class="col-12 col-md">
+      <label for="orderSearch" class="visually-hidden">Search orders</label>
+      <input type="search" id="orderSearch" class="form-control" placeholder="Search by name, order no., phone or service..." autocomplete="off">
+    </div>
+    <div class="col-8 col-md-auto">
+      <label for="orderStatusFilter" class="visually-hidden">Filter by status</label>
+      <select id="orderStatusFilter" class="form-select">
+        <option value="">All statuses</option>
+        <option value="pending">Pending</option>
+        <option value="approved">Approved</option>
+        <option value="in_production">In Production</option>
+        <option value="completed">Completed</option>
+      </select>
+    </div>
+    <div class="col-4 col-md-auto">
+      <button type="button" id="clearFiltersBtn" class="btn btn-outline-secondary w-100 d-none">Clear</button>
+    </div>
+  </div>
+
+  <div id="orderListMessage"></div>
+
+  <div id="orderListWrap" class="card d-none">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th scope="col">Order No.</th>
+            <th scope="col">Customer</th>
+            <th scope="col">Service</th>
+            <th scope="col" class="text-end">Total</th>
+            <th scope="col">Date</th>
+            <th scope="col">Status</th>
+          </tr>
+        </thead>
+        <tbody id="orderListBody"></tbody>
+      </table>
+    </div>
+    <div class="card-footer bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <span id="orderListSummary" class="small text-muted"></span>
+      <nav aria-label="Order list pages">
+        <div class="btn-group btn-group-sm">
+          <button type="button" id="orderPrevBtn" class="btn btn-outline-secondary">Previous</button>
+          <span id="orderPageLabel" class="btn btn-light disabled">Page 1 of 1</span>
+          <button type="button" id="orderNextBtn" class="btn btn-outline-secondary">Next</button>
+        </div>
+      </nav>
+    </div>
+    <div id="orderListNote" class="form-text px-3 pb-2 d-none">Showing the 500 most recent orders plus every unfinished order.</div>
+  </div>
+</section>
+
+<section id="section-revenue" class="d-none" data-title="Revenue &amp; Reports">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h4 mb-0">Revenue &amp; Reports</h1>
+    <button type="button" id="refreshRevenueBtn" class="btn btn-outline-secondary btn-sm">Refresh</button>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="row g-3 align-items-end">
+        <div class="col-12 col-md-auto">
+          <div id="periodTypeLabel" class="form-label fw-semibold mb-1">Report type</div>
+          <div class="btn-group" role="group" aria-labelledby="periodTypeLabel">
+            <button type="button" class="btn btn-outline-primary active" data-period-type="daily" aria-pressed="true">Daily</button>
+            <button type="button" class="btn btn-outline-primary" data-period-type="monthly" aria-pressed="false">Monthly</button>
+          </div>
+        </div>
+
+        <div id="dateControl" class="col-12 col-sm-6 col-md-auto">
+          <label for="reportDate" class="form-label fw-semibold mb-1">Date</label>
+          <input type="date" id="reportDate" class="form-control">
+        </div>
+
+        <div id="monthControl" class="col-12 col-sm-6 col-md-auto d-none">
+          <label for="reportMonth" class="form-label fw-semibold mb-1">Month</label>
+          <input type="month" id="reportMonth" class="form-control" placeholder="YYYY-MM">
+        </div>
+
+        <div class="col-auto">
+          <div class="btn-group" role="group" aria-label="Move between periods">
+            <button type="button" id="periodPrevBtn" class="btn btn-outline-secondary">&lsaquo; Previous</button>
+            <button type="button" id="periodNextBtn" class="btn btn-outline-secondary">Next &rsaquo;</button>
+          </div>
+        </div>
+
+        <div class="col-auto">
+          <button type="button" id="periodResetBtn" class="btn btn-link">Today</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2 id="reportTitle" class="h5 mb-3"></h2>
+  <div id="reportPanel" class="mb-4"></div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-lg-7">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-1">
+            <h2 class="h6 mb-0">Revenue trend</h2>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Chart period">
+              <button type="button" class="btn btn-outline-primary active" data-chart-mode="daily" aria-pressed="true">Daily</button>
+              <button type="button" class="btn btn-outline-primary" data-chart-mode="monthly" aria-pressed="false">Monthly</button>
+            </div>
+          </div>
+          <p id="chartCaption" class="small text-muted"></p>
+          <div id="revenueChart"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-5">
+      <div class="card h-100">
+        <div class="card-body">
+          <h2 class="h6 mb-1">Completed orders by source</h2>
+          <p class="small text-muted">Based on the orders loaded in the app.</p>
+          <div id="sourceBreakdown"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header bg-white fw-semibold">Recently completed orders</div>
+    <div id="ledgerWrap"></div>
+  </div>
+</section>
+
+<section id="section-users" class="d-none" data-title="User Management">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h1 class="h4 mb-0">User Management</h1>
+    <div class="d-flex gap-2">
+      <button type="button" id="refreshStaffBtn" class="btn btn-outline-secondary btn-sm">Refresh</button>
+      <a href="create-staff.html" class="btn btn-primary btn-sm">+ Create Staff Account</a>
+    </div>
+  </div>
+
+  <div id="staffListMessage"></div>
+
+  <div id="staffListWrap" class="card d-none">
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead>
+          <tr>
+            <th scope="col">Name</th>
+            <th scope="col">Username</th>
+            <th scope="col">Status</th>
+            <th scope="col">Created</th>
+            <th scope="col" class="text-end">Action</th>
+          </tr>
+        </thead>
+        <tbody id="staffListBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+      </main>
+    </div>
+  </div>
+
+<div class="modal fade" id="orderDetailModal" tabindex="-1" aria-labelledby="orderDetailTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title h5" id="orderDetailTitle">Order</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="orderDetailBody"></div>
+      <div class="modal-footer">
+  <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+    <button type="button" id="orderDetailMoveBtn" class="btn btn-outline-primary d-none">Move</button>
+  <button type="button" id="orderDetailEditBtn" class="btn btn-primary d-none">Edit order</button>
+</div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="moveConfirmModal" tabindex="-1" aria-labelledby="moveConfirmTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title h5" id="moveConfirmTitle">Move order?</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="moveConfirmError" class="alert alert-danger d-none" role="alert"></div>
+        <p id="moveConfirmText" class="mb-0"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" id="moveConfirmBtn" class="btn btn-primary">Confirm</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="profileModal" tabindex="-1" aria-labelledby="profileModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title h5" id="profileModalTitle">My Profile</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="text-center mb-3">
+          <span id="profileModalAvatar" class="profile-avatar profile-avatar-lg" aria-hidden="true"></span>
+          <div id="profileModalName" class="fw-bold mt-2"></div>
+        </div>
+        <dl class="row mb-0">
+          <dt class="col-5 fw-normal text-muted">Account type</dt>
+          <dd id="profileAccountType" class="col-7"></dd>
+          <dt class="col-5 fw-normal text-muted">Position</dt>
+          <dd id="profilePosition" class="col-7"></dd>
+          <dt class="col-5 fw-normal text-muted">Username</dt>
+          <dd id="profileUsername" class="col-7 mb-0"></dd>
+        </dl>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" id="profileLogoutBtn" class="btn btn-primary">Logout</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="deactivateModal" tabindex="-1" aria-labelledby="deactivateTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title h5" id="deactivateTitle">Deactivate account?</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="deactivateError" class="alert alert-danger d-none" role="alert"></div>
+        <p id="deactivateText" class="mb-0"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" id="deactivateConfirmBtn" class="btn btn-danger">Deactivate</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+  <div id="appToast" class="toast align-items-center border-0" role="status" aria-live="polite" aria-atomic="true">
+    <div class="d-flex">
+      <div id="appToastBody" class="toast-body"></div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+  </div>
+</div>
+
+<div class="offcanvas offcanvas-end" tabindex="-1" id="orderDrawer" aria-labelledby="orderDrawerTitle">
+  <div class="offcanvas-header border-bottom">
+    <h2 class="offcanvas-title h5" id="orderDrawerTitle">Log New Order</h2>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+
+  <div class="offcanvas-body">
+    <div id="orderFormError" class="alert alert-danger d-none" role="alert"></div>
+
+    <form id="orderForm" novalidate>
+      <div class="mb-3">
+        <label for="customerName" class="form-label fw-semibold">Customer name</label>
+        <input type="text" id="customerName" name="customer_name" class="form-control" maxlength="120" autocomplete="off">
+        <div class="invalid-feedback" data-error-for="customer_name"></div>
+      </div>
+
+      <div class="row g-3 mb-1">
+        <div class="col-sm-6">
+          <label for="customerPhone" class="form-label fw-semibold">Phone number</label>
+          <input type="tel" id="customerPhone" name="customer_phone" class="form-control" maxlength="30" placeholder="09XX XXX XXXX" autocomplete="off">
+          <div class="invalid-feedback" data-error-for="customer_phone"></div>
+        </div>
+        <div class="col-sm-6">
+          <label for="customerEmail" class="form-label fw-semibold">Email</label>
+          <input type="email" id="customerEmail" name="customer_email" class="form-control" maxlength="150" autocomplete="off">
+          <div class="invalid-feedback" data-error-for="customer_email"></div>
+        </div>
+      </div>
+      <div class="form-text mb-3">Enter at least a phone number or an email.</div>
+
+      <fieldset class="mb-3">
+        <legend class="fs-6 fw-semibold mb-2">Order source</legend>
+        <div id="channelOptions"></div>
+        <div class="invalid-feedback" data-error-for="order_channel"></div>
+      </fieldset>
+
+      <div class="mb-3">
+        <label for="serviceType" class="form-label fw-semibold">Printing service</label>
+        <select id="serviceType" name="service_type" class="form-select"></select>
+        <div class="invalid-feedback" data-error-for="service_type"></div>
+        <div id="serviceOtherBox" class="mt-2 d-none">
+          <input type="text" id="serviceOther" name="service_other" class="form-control" maxlength="72" placeholder="Please Specify" aria-label="Other printing service">
+          <div class="invalid-feedback" data-error-for="service_other"></div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-sm-5">
+          <label for="quantity" class="form-label fw-semibold">Quantity</label>
+          <input type="text" inputmode="numeric" id="quantity" name="quantity" class="form-control num" placeholder="50" autocomplete="off">
+          <div class="invalid-feedback" data-error-for="quantity"></div>
+        </div>
+        <div class="col-sm-7">
+          <label for="unitPrice" class="form-label fw-semibold">Unit price</label>
+          <div class="input-group">
+            <span class="input-group-text">₱</span>
+            <input type="text" inputmode="decimal" id="unitPrice" name="unit_price" class="form-control num" placeholder="0.00" autocomplete="off">
+          </div>
+          <div class="invalid-feedback" data-error-for="unit_price"></div>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label for="dueDate" class="form-label fw-semibold">Due date</label>
+        <input type="date" id="dueDate" name="due_date" class="form-control">
+        <div class="invalid-feedback" data-error-for="due_date"></div>
+      </div>
+
+      <fieldset class="mb-3">
+        <legend class="fs-6 fw-semibold mb-2">Delivery or pickup</legend>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="fulfillment_method" id="fulfillPickup" value="pickup" checked>
+          <label class="form-check-label" for="fulfillPickup">Pickup</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="radio" name="fulfillment_method" id="fulfillDelivery" value="delivery">
+          <label class="form-check-label" for="fulfillDelivery">Delivery</label>
+        </div>
+        <div id="addressBox" class="mt-2 d-none">
+          <label for="deliveryAddress" class="form-label">Delivery address</label>
+          <textarea id="deliveryAddress" name="delivery_address" class="form-control" rows="2" maxlength="2000"></textarea>
+          <div class="invalid-feedback" data-error-for="delivery_address"></div>
+        </div>
+        <div class="invalid-feedback" data-error-for="fulfillment_method"></div>
+      </fieldset>
+
+      <div class="mb-3">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" role="switch" id="applyDiscount" name="apply_discount">
+          <label class="form-check-label fw-semibold" for="applyDiscount">Apply discount (optional)</label>
+        </div>
+        <div id="discountBox" class="mt-2 d-none">
+          <div class="input-group">
+            <span class="input-group-text">₱</span>
+            <input type="text" inputmode="decimal" id="discountAmount" name="discount_amount" class="form-control num" placeholder="0.00" aria-label="Discount amount" autocomplete="off">
+          </div>
+          <div class="invalid-feedback" data-error-for="discount_amount"></div>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label for="description" class="form-label fw-semibold">Description (optional)</label>
+        <textarea id="description" name="description" class="form-control" rows="3" maxlength="2000" placeholder="Size, paper type, finish, file link..."></textarea>
+        <div class="invalid-feedback" data-error-for="description"></div>
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center bg-light rounded p-3">
+        <span class="fw-semibold">Estimated total</span>
+        <span id="totalPreview" class="fs-5 fw-bold text-primary num">₱0.00</span>
+      </div>
+      <div class="form-text">The final total is calculated by the server.</div>
+    </form>
+  </div>
+
+  <div class="border-top p-3 d-flex justify-content-end gap-2">
+    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
+    <button type="submit" form="orderForm" id="orderSaveBtn" class="btn btn-primary">Save Order</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="../js/config.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/ui.js"></script>
+<script src="../js/order-form.js"></script>
+<script src="../js/orders.js"></script>
+<script src="../js/board.js"></script>
+<script src="../js/users.js"></script>
+<script src="../js/revenue.js"></script>
+<script src="../js/refresh.js"></script>
+<script src="../js/profile.js"></script>
+<script src="../js/dashboard.js"></script>
+</body>
+</html>
