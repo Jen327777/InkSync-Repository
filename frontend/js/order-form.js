@@ -160,10 +160,11 @@ function validateOrder(values) {
 
   if (!f.service_type.value) {
     errors.service_type = 'Choose a printing service.';
-  } else if (new TextEncoder().encode(values.service_type).length > 72) {
-      errors.service_other = 'Keep it to 72 characters or fewer.';
+   } else if (new TextEncoder().encode(values.service_type).length > 72) {
+    errors.service_other = 'Keep it to 72 characters or fewer.';
+  }
 
-  if (!/^\d+$/.test(values.quantity) || Number(values.quantity) < 1 || Number(values.quantity) > 100000) {
+  if (!/^\d+$/.test(values.quantity)|| Number(values.quantity) < 1 || Number(values.quantity) > 100000) {
     errors.quantity = 'Enter a whole number from 1 to 100,000.';
   }
 
@@ -374,4 +375,4 @@ document.getElementById('newOrderBtn').addEventListener('click', openOrderForm);
 
 renderOptions();
 syncFormVisibility();
-}
+
