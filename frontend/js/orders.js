@@ -3,6 +3,14 @@ let ordersTruncated = false;
 
 let orders = [];
 
+let ordersLoadedOnce = false;
+let ordersLoading = false;
+let ordersReloadQueued = false;
+let ordersSignature = '';
+let ordersVersion = 0;
+
+const orderDetailMoveBtn = document.getElementById('orderDetailMoveBtn');
+
 const ORDER_PAGE_SIZE = 10;
 const orderFilters = { query: '', status: '', page: 1 };
 
@@ -154,31 +162,105 @@ async function fetchAllOrders() {
 }
 
 
-async function loadOrders() {
-  showListMessage(
-    '<div class="text-center text-muted py-5">' +
-    '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Loading orders...' +
-    '</div>'
-  );
+function computeOrdersSignature(list) {
+  return list.map((order) => order.id + ':' + order.status + ':' + order.updated_at).join('|');
+}
+
+function announceOrderChanges(before, after) {
+  const messages = [];
+  let created = 0;
+
+  after.forEach((order) => {
+    const id = Number(order.id);
+    if (!before.has(id)) {
+      created += 1;
+    } else if (before.get(id) !== order.status) {
+      messages.push(orderNumber(id) + ' is now ' + STATUS_LABELS[order.status] + '.');
+    }
+  });
+
+  if (created > 0) {
+    messages.push(created === 1 ? 'A new order was logged.' : created + ' new orders were logged.');
+  }
+
+  if (messages.length === 0) {
+    return;
+  }
+
+  showToast(messages.length > 2 ? 'Orders were updated by another user.' : messages.join(' '), 'primary');
+}
+
+async function loadOrders(options = {}) {
+  const silent = options.silent === true && ordersLoadedOnce;
+  const announce = options.announce === true;
+
+  if (ordersLoading) {
+    ordersReloadQueued = true;
+    return;
+  }
+
+  ordersLoading = true;
+  const versionAtStart = ordersVersion;
+
+  if (!silent) {
+    showListMessage(
+      '<div class="text-center text-muted py-5">' +
+      '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Loading orders...' +
+      '</div>'
+    );
+  }
 
   try {
     const result = await fetchAllOrders();
-orders = result.orders;
-ordersTruncated = result.truncated;
-    renderOrderList();
-    document.dispatchEvent(new CustomEvent('orders:loaded'));
+
+    if (versionAtStart !== ordersVersion) {
+      ordersReloadQueued = true;
+      return;
+    }
+
+    const before = new Map(orders.map((order) => [Number(order.id), order.status]));
+    const signature = computeOrdersSignature(result.orders);
+    const changed = signature !== ordersSignature;
+
+    orders = result.orders;
+    ordersTruncated = result.truncated;
+    ordersSignature = signature;
+
+    if (announce && ordersLoadedOnce) {
+      announceOrderChanges(before, orders);
+    }
+
+    if (changed || !silent) {
+      renderOrderList();
+      document.dispatchEvent(new CustomEvent('orders:loaded'));
+    } else {
+      document.dispatchEvent(new CustomEvent('orders:checked'));
+    }
+
+    ordersLoadedOnce = true;
   } catch (error) {
     if (error.status === 401) {
       window.location.replace('login.html');
       return;
     }
-    document.dispatchEvent(new CustomEvent('orders:failed', { detail: error.message }));
-    showListMessage(
-      '<div class="alert alert-danger d-flex justify-content-between align-items-center" role="alert">' +
-      '<span>' + escapeHtml(error.message) + '</span>' +
-      '<button type="button" class="btn btn-sm btn-outline-danger" data-action="retry-orders">Try again</button>' +
-      '</div>'
-    );
+
+    if (silent) {
+      document.dispatchEvent(new CustomEvent('orders:refresh-failed', { detail: error.message }));
+    } else {
+      document.dispatchEvent(new CustomEvent('orders:failed', { detail: error.message }));
+      showListMessage(
+        '<div class="alert alert-danger d-flex justify-content-between align-items-center" role="alert">' +
+        '<span>' + escapeHtml(error.message) + '</span>' +
+        '<button type="button" class="btn btn-sm btn-outline-danger" data-action="retry-orders">Try again</button>' +
+        '</div>'
+      );
+    }
+  } finally {
+    ordersLoading = false;
+    if (ordersReloadQueued) {
+      ordersReloadQueued = false;
+      loadOrders({ silent: true });
+    }
   }
 }
 
@@ -239,6 +321,11 @@ function openOrderDetail(id) {
 
     detailOrderId = Number(order.id);
 orderDetailEditBtn.classList.toggle('d-none', order.status === 'completed');
+  const nextStatus = NEXT_STATUS[order.status];
+  orderDetailMoveBtn.classList.toggle('d-none', !nextStatus);
+  if (nextStatus) {
+    orderDetailMoveBtn.textContent = 'Move to ' + STATUS_LABELS[nextStatus];
+  }
 
   bootstrap.Modal.getOrCreateInstance(document.getElementById('orderDetailModal')).show();
 }
@@ -260,7 +347,7 @@ orderListMessage.addEventListener('click', (event) => {
 });
 
 document.getElementById('refreshOrdersBtn').addEventListener('click', loadOrders);
-document.addEventListener('orders:changed', loadOrders);
+document.addEventListener('orders:changed', () => loadOrders({ silent: true }));
 
 orderSearch.addEventListener('input', (event) => {
   orderFilters.query = event.target.value;
@@ -300,4 +387,17 @@ orderDetailEditBtn.addEventListener('click', () => {
   }, { once: true });
 
   bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+});
+
+orderDetailMoveBtn.addEventListener('click', () => {
+  const id = detailOrderId;
+  const order = orders.find((item) => Number(item.id) === id);
+  const next = order ? NEXT_STATUS[order.status] : null;
+  if (!next) {
+    return;
+  }
+
+  const modalEl = document.getElementById('orderDetailModal');
+  modalEl.addEventListener('hidden.bs.modal', () => askToMove(id, next), { once: true });
+  bootstrap.Modal.getInstance(modalEl).hide();
 });

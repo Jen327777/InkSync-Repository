@@ -72,6 +72,51 @@ async function refreshBoard() {
   renderBoard();
 }
 
+const CONFLICT_STATUSES = [404, 409, 422];
+
+function describeMoveError(error) {
+  const message = error.message || '';
+
+  if (error.status === 404) {
+    return 'This order no longer exists.';
+  }
+
+  if (error.status === 409 && /completed/i.test(message)) {
+    return 'This order is already completed and locked.';
+  }
+
+  if (error.status === 409) {
+    return 'Another user changed this order first. The list has been refreshed, so check its current status.';
+  }
+
+  if (error.status === 422 && /transition/i.test(message)) {
+    const match = message.match(/is:\s*(\w+)/);
+    const label = match ? STATUS_LABELS[match[1]] : null;
+    return label
+      ? 'This order is no longer at that stage. Its next allowed status is ' + label + '.'
+      : 'This order is no longer at that stage. The list has been refreshed.';
+  }
+
+  return message;
+}
+
+function applyStatusLocally(id, nextStatus) {
+  const order = orders.find((item) => Number(item.id) === id);
+  if (!order) {
+    return;
+  }
+
+  if (boardCounts) {
+    boardCounts[order.status] = Number(boardCounts[order.status]) - 1;
+    boardCounts[nextStatus] = Number(boardCounts[nextStatus]) + 1;
+  }
+
+  order.status = nextStatus;
+  ordersVersion += 1;
+  renderBoard();
+  renderOrderList();
+}
+
 function askToMove(id, nextStatus) {
   const order = orders.find((item) => Number(item.id) === id);
   if (!order) {
@@ -79,6 +124,7 @@ function askToMove(id, nextStatus) {
   }
 
   pendingMove = { id, nextStatus };
+  moveConfirmBtn.classList.remove('d-none');
   moveConfirmError.classList.add('d-none');
 
   const lockNote = nextStatus === 'completed'
@@ -120,6 +166,7 @@ moveConfirmBtn.addEventListener('click', async () => {
 
   try {
     await api.post('/orders/update-status.php', { id, status: nextStatus });
+    applyStatusLocally(id, nextStatus);
     moveModal.hide();
     showToast(orderNumber(id) + ' moved to ' + STATUS_LABELS[nextStatus] + '.');
     document.dispatchEvent(new CustomEvent('orders:changed'));
@@ -128,9 +175,12 @@ moveConfirmBtn.addEventListener('click', async () => {
       window.location.replace('login.html');
       return;
     }
-    moveConfirmError.textContent = error.message;
+
+    moveConfirmError.textContent = describeMoveError(error);
     moveConfirmError.classList.remove('d-none');
-    if (error.status === 409 || error.status === 422) {
+
+    if (CONFLICT_STATUSES.includes(error.status)) {
+      moveConfirmBtn.classList.add('d-none');
       document.dispatchEvent(new CustomEvent('orders:changed'));
     }
   } finally {
