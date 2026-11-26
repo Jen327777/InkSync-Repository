@@ -2,11 +2,6 @@ const ORDER_CHANNELS = ['Phone', 'Walk-in', 'Facebook Messenger', 'Email'];
 
 const SERVICE_TYPES = [
   'Tarpaulin',
-  'Document Printing',
-  'Photocopy',
-  'Business Cards',
-  'Stickers',
-  'Layout & Design',
   'Acrylic Signages',
   'Panaflex Signages',
   'Wall Mural Sticker',
