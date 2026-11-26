@@ -12,7 +12,7 @@ function getDatabaseConnection(): PDO
         $config['database']
     );
 
-    return new PDO(
+    $pdo = new PDO(
         $dsn,
         $config['username'],
         $config['password'],
@@ -22,4 +22,10 @@ function getDatabaseConnection(): PDO
             PDO::ATTR_EMULATE_PREPARES => false
         ]
     );
+
+    // Use Philippine time (UTC+8) so NOW(), order dates and revenue
+    // reports match the business day, whatever the server's own time zone is.
+    $pdo->exec("SET time_zone = '+08:00'");
+
+    return $pdo;
 }
